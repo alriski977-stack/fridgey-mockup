@@ -35,11 +35,25 @@ create index if not exists subs_id_idx on public.subscriptions (id desc);
 
 -- ============================================================
 -- Row Level Security
--- App memakai SERVICE ROLE KEY (bypass RLS). Untuk keamanan
--- lebih ketat, batasi service key hanya untuk server.
+-- CATATAN:
+--  * Service role key otomatis bypass RLS (cocok untuk produksi; simpan
+--    di env server, jangan pernah di client).
+--  * Untuk perkembangan demo memakai key Publishable/anon, kebijakan di
+--    bawah memberi izin tulis/baca pada tabel aplikasi (tanpa autentikasi user).
+--    Untuk produksi, ganti dengan kebijakan berbasis auth.uid().
 -- ============================================================
 alter table public.items enable row level security;
 alter table public.subscriptions enable row level security;
+
+drop policy if exists "demo full access items" on public.items;
+create policy "demo full access items"
+  on public.items for all
+  using (true) with check (true);
+
+drop policy if exists "demo full access subscriptions" on public.subscriptions;
+create policy "demo full access subscriptions"
+  on public.subscriptions for all
+  using (true) with check (true);
 
 -- ============================================================
 -- Seed data contoh (opsional; dipakai bila tabel kosong)

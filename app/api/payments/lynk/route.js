@@ -22,14 +22,39 @@ export async function POST(request) {
       }
     }
 
-    // Field umum yang dikirim Lynk.id (normalisasi dari beberapa skema payload).
-    const ref = body.payment_ref || body.paymentRef || body.order_id || body.external_id ||
-      body.transaction_id || body.id || body.invoice_number || "lynk-" + Date.now();
-    const raw_status = body.status || body.payment_status || body.transaction_status ||
-      body.event_type || "pending";
-    const plan = body.plan || body.metadata?.plan || body.description || "Pro";
-    const amount = Number(body.amount || body.gross_amount || body.nominal || 0) || 0;
-    const method = body.payment_method || body.method || body.channel || "";
+    // Field umum yang dikirim Lynk.id. Payload bisa di level atas maupun
+    // bertingkat (data/payment/transaction) -> kita normalisasi keduanya.
+    const nested =
+      (body.data && typeof body.data === "object" ? body.data : null) ||
+      (body.payment && typeof body.payment === "object" ? body.payment : null) ||
+      (body.transaction && typeof body.transaction === "object" ? body.transaction : null) ||
+      {};
+    const top = body;
+    const get = (k, root) => (root && root[k] !== undefined && root[k] !== null ? root[k] : undefined);
+    const pick = (...keys) => {
+      for (const k of keys) {
+        for (const root of [nested, top]) {
+          const v = get(k, root);
+          if (v !== undefined) return v;
+        }
+      }
+      return undefined;
+    };
+
+    const ref = pick("payment_ref", "paymentRef", "order_id", "external_id", "transaction_id", "id", "invoice_number") || "lynk-" + Date.now();
+    const raw_status = pick("status", "payment_status", "transaction_status", "event_type", "event", "type") || "pending";
+    const amount = Number(pick("amount", "gross_amount", "nominal", "total", "value") || 0) || 0;
+    const method = pick("payment_method", "method", "channel", "payment_channel") || "";
+
+    // Deteksi paket dari teks, lalu fallback dari nominal.
+    const planText = String(pick("plan", "description", "item_name") || "").toLowerCase();
+    const plan = /pro\b/.test(planText)
+      ? "Pro"
+      : /starter|bulanan/.test(planText)
+        ? "Starter"
+        : /trial|coba/.test(planText)
+          ? "Trial"
+          : amount >= 120000 ? "Pro" : amount >= 60000 ? "Starter" : "Trial";
 
     await store.savePayment({
       plan,
@@ -37,7 +62,7 @@ export async function POST(request) {
       paymentRef: String(ref),
       amount,
       method,
-      note: "sumber: lynk.id",
+      note: "sumber: lynk.id (normalisasi payload)",
     });
 
     return NextResponse.json({ ok: true, received: true });
