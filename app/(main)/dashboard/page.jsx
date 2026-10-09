@@ -1,5 +1,7 @@
 import { getSummary } from "@/lib/items";
 
+export const dynamic = "force-dynamic";
+
 function rupiah(n) {
   return "Rp " + n.toLocaleString("id-ID");
 }
