@@ -1,56 +1,119 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+function emptyForm(source) {
+  return {
+    name: "",
+    qty: "",
+    unit: "",
+    unitCost: "",
+    expiry: "",
+    category: "",
+    source,
+    photoUrl: "",
+  };
+}
 
 export default function TambahPage() {
   const router = useRouter();
+  const fileRef = useRef(null);
   const [method, setMethod] = useState("photo");
-  const [result, setResult] = useState(null);
+  const [form, setForm] = useState(() => emptyForm("photo"));
   const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState("");
 
-  const [form, setForm] = useState({
-    name: "Bayam Segar",
-    qty: 2,
-    unit: "ikat",
-    unitCost: 5000,
-    expiry: "2026-10-03",
-    category: "Sayur",
-    source: "photo",
-  });
+  function set(field, value) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
 
-  function simulateScan(e) {
-    e.preventDefault();
-    // Simulasi OCR/barcode mengisi form otomatis
-    setResult({
-      detected: true,
-      message:
-        "OCR mendeteksi: 'Bayam Segar' - tanggal pada label: 03 Okt 2026. Verifikasi lalu simpan.",
-    });
-    setForm({
-      name: "Bayam Segar",
-      qty: 2,
-      unit: "ikat",
-      unitCost: 5000,
-      expiry: "2026-10-03",
-      category: "Sayur",
-      source: "photo",
-    });
+  function chooseMethod(k) {
+    setMethod(k);
+    setForm((f) => ({ ...f, source: k }));
+  }
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setMsg("");
+    setUploading(true);
+    setPreview(URL.createObjectURL(file));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "Gagal mengunggah foto.");
+        setPreview("");
+        set("photoUrl", "");
+        return;
+      }
+      set("photoUrl", data.url);
+      setMsg("Foto berhasil diunggah.");
+    } catch {
+      setError("Tidak dapat mengunggah foto. Coba lagi.");
+      setPreview("");
+      set("photoUrl", "");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save(e) {
     e.preventDefault();
-    const res = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      setMsg("Item berhasil disimpan ke SQLite!");
-      setTimeout(() => router.push("/stok"), 900);
-    } else {
-      setMsg("Gagal menyimpan: " + data.error);
+    setError("");
+    setMsg("");
+
+    if (form.name.trim().length < 2) {
+      setError("Nama bahan minimal 2 karakter.");
+      return;
+    }
+    if (!form.qty || Number(form.qty) <= 0) {
+      setError("Jumlah (qty) harus lebih dari 0.");
+      return;
+    }
+    if (!form.expiry) {
+      setError("Tanggal kedaluwarsa wajib diisi.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          qty: Number(form.qty),
+          unit: form.unit.trim() || "pcs",
+          unitCost: Number(form.unitCost) || 0,
+          expiry: form.expiry,
+          category: form.category.trim() || "Lainnya",
+          source: form.source,
+          photoUrl: form.photoUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError("Gagal menyimpan: " + (data.error || "terjadi kesalahan"));
+        return;
+      }
+      setMsg("Bahan berhasil disimpan.");
+      // Reset ke kondisi awal yang netral (tanpa nilai contoh apa pun).
+      setForm(emptyForm(method));
+      setPreview("");
+      if (fileRef.current) fileRef.current.value = "";
+      setTimeout(() => router.push("/stok"), 800);
+    } catch {
+      setError("Tidak dapat menghubungi server. Coba lagi.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -58,71 +121,73 @@ export default function TambahPage() {
     <>
       <div className="topbar">
         <h1>Tambah Bahan</h1>
-        <span className="user">Input chat-first: sekali konfirmasi</span>
+        <span className="user">Isi sekali, langsung tersimpan</span>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 22 }}>
         {[
-          ["photo", "Foto / OCR"],
-          ["barcode", "Scan Barcode"],
-          ["manual", "Manual"],
+          ["photo", "Foto Struk / Kemasan"],
+          ["manual", "Isi Manual"],
         ].map(([k, label]) => (
           <button
             key={k}
+            type="button"
             className={`btn ${method === k ? "" : "ghost"}`}
-            onClick={(e) => {
-              e.preventDefault();
-              setMethod(k);
-              setForm((f) => ({ ...f, source: k }));
-            }}
+            onClick={() => chooseMethod(k)}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <form onSubmit={method === "photo" ? simulateScan : save}>
+      <form onSubmit={save}>
         {method === "photo" && (
           <div className="upload">
             <div className="big">📷</div>
             <div>
-              Foto struk / kemasan bahan. OCR membaca nama & tanggal kedaluwarsa (simulasi).
+              Unggah foto struk / kemasan bahan (JPG, PNG, atau WEBP, maks 5 MB).
+              Nama &amp; tanggal kedaluwarsa diisi manual pada kolom di bawah.
             </div>
-            {!result && (
-              <button
-                className="btn"
-                type="submit"
-                style={{ marginTop: 14 }}
-                onClick={(e) => e.preventDefault()}
-              >
-                Ambil/Mock Foto & Deteksi
-              </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              onChange={handleFile}
+              disabled={uploading || saving}
+              style={{ marginTop: 14 }}
+            />
+            {uploading && <p style={{ fontSize: 12 }}>Mengunggah foto...</p>}
+            {preview && (
+              <div style={{ marginTop: 12 }}>
+                <img
+                  src={preview}
+                  alt="Pratinjau foto"
+                  style={{
+                    maxWidth: 220,
+                    maxHeight: 160,
+                    borderRadius: 8,
+                    border: "1px solid #b9d8bc",
+                  }}
+                />
+              </div>
             )}
           </div>
         )}
 
-        {method === "barcode" && (
-          <div className="upload">
-            <div className="big">▌▐</div>
-            <div>
-              Scan barcode untuk identifikasi produk (barcode tidak memuat tanggal expiry -
-              pengguna memasukkan tanggal / verifikasi dari label).
-            </div>
-          </div>
-        )}
-
-        {result && (
+        {method === "manual" && (
           <p
             style={{
-              background: "#e8f5e9",
-              border: "1px solid #b9d8bc",
-              color: "#1b5e20",
-              padding: "10px 14px",
-              borderRadius: 8,
               fontSize: 13,
+              color: "#6b7280",
+              background: "#f4f9f4",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: "10px 14px",
+              marginBottom: 16,
             }}
           >
-            {result.message}
+            Masukkan data bahan secara manual pada kolom di bawah.
           </p>
         )}
 
@@ -131,53 +196,54 @@ export default function TambahPage() {
             className="input"
             placeholder="Nama bahan"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={(e) => set("name", e.target.value)}
           />
           <input
             className="input"
-            placeholder="Kategori"
+            placeholder="Kategori (mis. Sayur, Protein)"
             value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            onChange={(e) => set("category", e.target.value)}
           />
         </div>
         <div className="form-row">
           <input
             className="input"
             type="number"
+            min="0"
+            step="any"
             placeholder="Qty"
             value={form.qty}
-            onChange={(e) => setForm({ ...form, qty: e.target.value })}
+            onChange={(e) => set("qty", e.target.value)}
           />
           <input
             className="input"
             placeholder="Satuan (pcs/kg/ikat)"
             value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            onChange={(e) => set("unit", e.target.value)}
           />
         </div>
         <div className="form-row">
           <input
             className="input"
             type="number"
+            min="0"
             placeholder="Harga beli (per satuan)"
             value={form.unitCost}
-            onChange={(e) => setForm({ ...form, unitCost: e.target.value })}
+            onChange={(e) => set("unitCost", e.target.value)}
           />
           <input
             className="input"
             type="date"
-            placeholder="Tanggal kedaluwarsa"
             value={form.expiry}
-            onChange={(e) => setForm({ ...form, expiry: e.target.value })}
+            onChange={(e) => set("expiry", e.target.value)}
           />
         </div>
 
-        <button className="btn" type="submit">
-          Simpan Bahan
+        <button className="btn" type="submit" disabled={saving || uploading}>
+          {saving ? "Menyimpan..." : "Simpan Bahan"}
         </button>
-        {msg && (
-          <p style={{ marginLeft: 12, fontWeight: 700, color: "#2f7d32" }}>{msg}</p>
-        )}
+        {msg && <span style={{ marginLeft: 12, fontWeight: 700, color: "#2f7d32" }}>{msg}</span>}
+        {error && <span style={{ marginLeft: 12, fontWeight: 700, color: "#c0392b" }}>{error}</span>}
       </form>
     </>
   );

@@ -1,4 +1,5 @@
 import { getAllItems } from "@/lib/items";
+import ExportLaporan from "@/components/ExportLaporan";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,13 @@ export default async function LaporanPage() {
     byCategory[it.category] = (byCategory[it.category] || 0) + it.qty * it.unitCost;
   }
 
+  const categories = [...new Set(items.map((i) => i.category))].filter(Boolean).sort();
+
   return (
     <>
       <div className="topbar">
         <h1>Laporan Dapur</h1>
-        <a href="#" className="btn">
-          ⬇ Export Excel (mock)
-        </a>
+        <span className="user">Ringkasan &amp; ekspor data stok</span>
       </div>
 
       <div className="grid">
@@ -48,6 +49,8 @@ export default async function LaporanPage() {
           <div className="sub">jika semua bahan hampir basi dipakai</div>
         </div>
       </div>
+
+      <ExportLaporan categories={categories} />
 
       <div className="panel">
         <div className="panel-head">Rincian per Kategori (nilai Rp)</div>

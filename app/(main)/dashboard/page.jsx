@@ -1,4 +1,5 @@
 import { getSummary } from "@/lib/items";
+import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,12 +8,15 @@ function rupiah(n) {
 }
 
 export default async function DashboardPage() {
-  const s = await getSummary();
+  const [s, user] = await Promise.all([getSummary(), getCurrentUser()]);
+  const userLabel = user
+    ? `${user.name || user.phone}${user.businessName ? " - " + user.businessName : ""}`
+    : "Belum masuk";
   return (
     <>
       <div className="topbar">
         <h1>Dashboard</h1>
-        <span className="user">Ibu Rina - Katering Rumahan</span>
+        <span className="user">{userLabel}</span>
       </div>
 
       <div className="grid">

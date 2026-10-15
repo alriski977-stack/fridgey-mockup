@@ -31,6 +31,7 @@ export default async function StokPage() {
           <thead>
             <tr>
               <th>Bahan</th>
+              <th>Foto</th>
               <th>Qty</th>
               <th>Satuan</th>
               <th>Kategori</th>
@@ -45,6 +46,15 @@ export default async function StokPage() {
               <tr key={it.id}>
                 <td>
                   <strong>{it.name}</strong>
+                </td>
+                <td>
+                  {it.photoUrl ? (
+                    <a href={it.photoUrl} target="_blank" rel="noreferrer">
+                      <img src={it.photoUrl} alt={it.name} className="thumb" />
+                    </a>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>—</span>
+                  )}
                 </td>
                 <td>{it.qty}</td>
                 <td>{it.unit}</td>
