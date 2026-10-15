@@ -22,7 +22,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "Berkas tidak ditemukan." }, { status: 400 });
   }
 
-  const result = await saveUpload(file);
+  const result = await saveUpload(file, user.id);
   if (!result.ok) {
     const status = /5 MB/.test(result.error) ? 413 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });

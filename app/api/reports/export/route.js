@@ -36,7 +36,7 @@ export async function GET(request) {
     const from = searchParams.get("from") || "";
     const to = searchParams.get("to") || "";
 
-    let items = await getAllItems();
+    let items = await getAllItems(user.id);
 
     if (category !== "Semua kategori") {
       items = items.filter((i) => i.category === category);

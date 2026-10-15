@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Belum masuk." }, { status: 401 });
   }
   try {
-    return NextResponse.json({ ok: true, ...(await getSummary()) });
+    return NextResponse.json({ ok: true, ...(await getSummary(user.id)) });
   } catch (e) {
     console.error("[reports GET]", e);
     return NextResponse.json(

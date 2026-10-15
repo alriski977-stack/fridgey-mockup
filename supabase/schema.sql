@@ -7,6 +7,7 @@
 -- ---------- Tabel item stok bahan makanan ----------
 create table if not exists public.items (
   id         bigint generated always as identity primary key,
+  user_id    bigint,
   name       text not null,
   qty        numeric not null default 0,
   unit       text not null default 'pcs',
@@ -56,6 +57,18 @@ alter table public.users alter column phone set default '';
 update public.users set email = 'user' || id || '@local.invalid' where email is null or email = '';
 delete from public.users a using public.users b where a.id > b.id and a.email = b.email;
 create unique index if not exists users_email_key on public.users (email);
+
+-- ---------- Kepemilikan bahan per akun (multi-tenant) ----------
+-- Setiap baris items dimiliki satu user_id, sehingga tiap akun punya
+-- daftar bahan (perpustakaan) sendiri yang terpisah.
+alter table public.items add column if not exists user_id bigint;
+alter table public.items drop constraint if exists items_user_id_fkey;
+alter table public.items add constraint items_user_id_fkey
+  foreign key (user_id) references public.users(id) on delete cascade;
+create index if not exists items_user_idx on public.items (user_id);
+-- Baris lama tanpa pemilik (data contoh) tidak dapat ditampilkan ke akun
+-- mana pun, jadi dibersihkan agar tidak menumpuk.
+delete from public.items where user_id is null;
 
 -- ---------- Tabel kode OTP (identitas: EMAIL) ----------
 -- Skema lama memakai kolom phone; kode OTP bersifat sementara sehingga tabel
@@ -163,17 +176,3 @@ drop policy if exists "receipts upload" on storage.objects;
 create policy "receipts upload"
   on storage.objects for insert
   with check (bucket_id = 'receipts');
-
--- ============================================================
--- Seed data contoh (opsional; dipakai bila tabel kosong)
--- ============================================================
-insert into public.items (name, qty, unit, unit_cost, expiry, category, source) values
-  ('Daging Ayam', 2.5, 'kg', 35000, '2026-10-05', 'Protein', 'manual'),
-  ('Susu UHT', 6, 'pcs', 18000, '2026-10-03', 'Minuman', 'barcode'),
-  ('Bayam Segar', 3, 'ikat', 5000, '2026-10-02', 'Sayur', 'photo'),
-  ('Tempe', 5, 'papan', 6000, '2026-10-04', 'Protein', 'manual'),
-  ('Tomat', 1, 'kg', 15000, '2026-10-08', 'Sayur', 'photo'),
-  ('Telur', 20, 'pcs', 2200, '2026-10-12', 'Protein', 'barcode'),
-  ('Saus Sambal', 3, 'botol', 12000, '2026-12-01', 'Bumbu', 'manual'),
-  ('Mie Instan', 24, 'pcs', 3200, '2027-01-15', 'Karbohidrat', 'barcode')
-on conflict do nothing;

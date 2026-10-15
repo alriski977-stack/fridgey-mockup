@@ -13,7 +13,7 @@ export default async function LaporanPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const items = await getAllItems();
+  const items = await getAllItems(user.id);
   const totalValue = items.reduce((a, i) => a + i.qty * i.unitCost, 0);
   const nearItems = items.filter(
     (i) => Math.ceil((new Date(i.expiry) - new Date()) / 86400000) <= 3
@@ -73,6 +73,14 @@ export default async function LaporanPage() {
             </tr>
           </thead>
           <tbody>
+            {Object.keys(byCategory).length === 0 && (
+              <tr>
+                <td colSpan={3} style={{ textAlign: "center", color: "#6b7280", padding: "28px 12px" }}>
+                  Belum ada data. Laporan akan terisi setelah Anda menambahkan bahan pada menu
+                  Tambah Bahan.
+                </td>
+              </tr>
+            )}
             {Object.entries(byCategory).map(([cat, val]) => (
               <tr key={cat}>
                 <td>{cat}</td>

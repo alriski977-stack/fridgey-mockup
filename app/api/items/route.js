@@ -10,14 +10,14 @@ async function requireUser() {
   if (!user) {
     return NextResponse.json({ ok: false, error: "Belum masuk." }, { status: 401 });
   }
-  return null;
+  return user;
 }
 
 export async function GET() {
-  const denied = await requireUser();
-  if (denied) return denied;
+  const user = await requireUser();
+  if (!user.id) return user;
   try {
-    return NextResponse.json({ ok: true, items: await getAllItems() });
+    return NextResponse.json({ ok: true, items: await getAllItems(user.id) });
   } catch (e) {
     console.error("[items GET]", e);
     return NextResponse.json(
@@ -28,8 +28,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const denied = await requireUser();
-  if (denied) return denied;
+  const user = await requireUser();
+  if (!user.id) return user;
   try {
     const body = await request.json();
     const name = String(body.name || "").trim();
@@ -62,7 +62,7 @@ export async function POST(request) {
       );
     }
 
-    const id = await addItem({
+    const id = await addItem(user.id, {
       name,
       qty,
       unit: String(body.unit || "pcs").trim() || "pcs",
@@ -83,8 +83,8 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const denied = await requireUser();
-  if (denied) return denied;
+  const user = await requireUser();
+  if (!user.id) return user;
   try {
     const body = await request.json();
     const status = String(body.status || "").trim();
@@ -97,7 +97,7 @@ export async function PATCH(request) {
     if (!Number.isInteger(Number(body.id))) {
       return NextResponse.json({ ok: false, error: "ID bahan tidak valid." }, { status: 400 });
     }
-    await updateStatus(Number(body.id), status, String(body.note || ""));
+    await updateStatus(user.id, Number(body.id), status, String(body.note || ""));
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[items PATCH]", e);

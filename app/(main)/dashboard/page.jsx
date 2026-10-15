@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const s = await getSummary();
+  const s = await getSummary(user.id);
   const userLabel = user.name
     ? `${user.name}${user.businessName ? " - " + user.businessName : ""}`
     : `${user.email}${user.businessName ? " - " + user.businessName : ""}`;

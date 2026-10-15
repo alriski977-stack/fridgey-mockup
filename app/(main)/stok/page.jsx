@@ -27,7 +27,7 @@ export default async function StokPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const items = await getAllItems();
+  const items = await getAllItems(user.id);
   return (
     <>
       <div className="topbar">
@@ -54,6 +54,14 @@ export default async function StokPage() {
             </tr>
           </thead>
           <tbody>
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={9} style={{ textAlign: "center", color: "#6b7280", padding: "28px 12px" }}>
+                  Kulkas masih kosong. Klik <strong>+ Tambah Bahan</strong> untuk mencatat bahan
+                  pertama Anda.
+                </td>
+              </tr>
+            )}
             {items.map((it) => (
               <tr key={it.id}>
                 <td>
