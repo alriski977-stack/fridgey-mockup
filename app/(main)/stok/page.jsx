@@ -1,4 +1,7 @@
 import { getAllItems } from "@/lib/items";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import SafeImage from "@/components/SafeImage";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +17,16 @@ function badge(days) {
   return <span className="badge safe">{days} hari</span>;
 }
 
+const STATUS_LABEL = {
+  tersimpan: "Tersimpan",
+  dipakai: "Dipakai",
+  terbuang: "Terbuang",
+};
+
 export default async function StokPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const items = await getAllItems();
   return (
     <>
@@ -50,7 +62,7 @@ export default async function StokPage() {
                 <td>
                   {it.photoUrl ? (
                     <a href={it.photoUrl} target="_blank" rel="noreferrer">
-                      <img src={it.photoUrl} alt={it.name} className="thumb" />
+                      <SafeImage src={it.photoUrl} alt={`Foto ${it.name}`} className="thumb" />
                     </a>
                   ) : (
                     <span style={{ color: "#9ca3af" }}>—</span>
@@ -62,7 +74,7 @@ export default async function StokPage() {
                 <td>{it.expiry}</td>
                 <td>{badge(daysLeft(it.expiry))}</td>
                 <td>{it.source}</td>
-                <td>{it.status}</td>
+                <td>{STATUS_LABEL[it.status] || it.status}</td>
               </tr>
             ))}
           </tbody>

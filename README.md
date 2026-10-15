@@ -16,30 +16,45 @@ npm install
 npm run dev
 ```
 
-Buka `http://localhost:3000` - login dengan nomor WhatsApp apa pun (OTP mock
-`123456`), lalu masuk dashboard.
+Buka `http://localhost:3000` lalu masuk dengan nomor WhatsApp Anda.
 
-Tanpa environment apa pun, app memakai **SQLite lokal** (`data/fridgey.db`, di-seed
-8 item contoh). Saat env Supabase terisi, otomatis beralih ke **Supabase/Postgres**.
+Login memakai **kode OTP 6 digit yang benar-benar dikirim** ke WhatsApp melalui
+penyedia yang dikonfigurasi di `.env.local` (lihat tabel Environment). Bila
+penyedia OTP belum diisi, halaman login akan menampilkan pesan bahwa layanan OTP
+belum dikonfigurasi - tidak ada kode OTP palsu yang ditampilkan.
+
+Untuk pengujian lokal tanpa penyedia OTP, isi `OTP_DEV_MODE=true` (otomatis
+diabaikan bila `NODE_ENV=production`); kode OTP lalu ditampilkan di layar
+untuk memudahkan pengujian.
+
+Tanpa environment Supabase, app memakai **SQLite lokal** (`data/fridgey.db`,
+di-seed 8 item contoh). Saat env Supabase terisi, otomatis beralih ke
+**Supabase/Postgres**.
 
 ## Halaman
 
 | Route | Fungsi |
 |---|---|
-| `/login` | Login chat-first via OTP WhatsApp (mock) |
+| `/login` | Login via OTP WhatsApp (kirim, verifikasi, kirim ulang) |
 | `/dashboard` | Ringkasan: total stok, hampir basi, hemat bulan ini |
-| `/stok` | Daftar stok dengan badge sisa hari (safe/warn/alert) |
-| `/tambah` | Tambah bahan: Foto(OCR)/Barcode/Manual + konfirmasi 1 ketukan |
-| `/laporan` | Laporan nilai stok per kategori + tombol export Excel (mock) |
+| `/stok` | Daftar stok dengan badge sisa hari + foto struk/kemasan |
+| `/tambah` | Tambah bahan: foto struk/kemasan atau isi manual |
+| `/laporan` | Laporan nilai stok per kategori + export Excel (.xlsx) |
 | `/bayar` | Paket & langganan; pembayaran via Lynk.id |
+| `/profil` | Data akun: nama, nama usaha, email, foto profil |
 
 ## API Routes
 
 | Endpoint | Metode | Keterangan |
 |---|---|---|
-| `/api/auth` | POST | Login OTP simulasi |
-| `/api/items` | GET/POST/PATCH | CRUD item stok |
-| `/api/reports` | GET | Ringkasan dashboard |
+| `/api/auth/otp` | POST | Minta kode OTP (rate limit 60 detik & 5x/jam per nomor) |
+| `/api/auth/verify` | POST | Verifikasi OTP, buat sesi cookie HttpOnly |
+| `/api/auth/logout` | POST | Hapus sesi |
+| `/api/profile` | GET/PUT | Baca & ubah profil milik pengguna yang sedang login |
+| `/api/upload` | POST | Unggah foto struk/kemasan/profil (JPG/PNG/WEBP, maks 5 MB) |
+| `/api/items` | GET/POST/PATCH | Data stok (butuh login) |
+| `/api/reports` | GET | Ringkasan dashboard (butuh login) |
+| `/api/reports/export` | GET | Unduh laporan dapur `.xlsx` sesuai filter |
 | `/api/payments/lynk` | POST | Webhook pembayaran Lynk.id |
 
 ## Environment (lihat `.env.local.example`)
@@ -48,6 +63,11 @@ Tanpa environment apa pun, app memakai **SQLite lokal** (`data/fridgey.db`, di-s
 |---|---|
 | `SUPABASE_URL` | URL proyek Supabase (mode cloud diaktifkan bila terisi) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key Supabase (rahasia, hanya di server) |
+| `SUPABASE_STORAGE_BUCKET` | Bucket foto struk/kemasan (default `receipts`) |
+| `OTP_PROVIDER` + `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID` | Login OTP via WhatsApp Cloud API |
+| `OTP_API_URL` + `OTP_API_KEY` | Login OTP via penyedia HTTP generik |
+| `OTP_PEPPER` | Kunci HMAC untuk hash kode OTP |
+| `OTP_DEV_MODE` | Kode OTP ditampilkan di layar (hanya non-produksi) |
 | `LYNK_LINK_STARTER` | URL payment link Lynk.id paket Starter (Rp 75rb/bln) |
 | `LYNK_LINK_PRO` | URL payment link Lynk.id paket Pro (Rp 149rb/bln) |
 | `LYNK_LINK_TRIAL` | URL payment link paket Trial (opsional) |
@@ -60,10 +80,12 @@ Hosting: set lewat dashboard Netlify/Vercel (env produksi).
 
 1. Buat proyek di https://supabase.com (paket gratis cukup untuk MVP).
 2. Dashboard Supabase → SQL Editor → tempel isi `supabase/schema.sql` → Run.
-   (Membuat tabel `items` & `subscriptions` + seed 8 item contoh + RLS).
+   (Membuat tabel `items`, `users`, `otp_codes`, `sessions`, `subscriptions`,
+   bucket foto `receipts`, kebijakan RLS, dan seed 8 item contoh.)
 3. Dashboard Supabase → Project Settings → API → salin `Project URL` dan
    `service_role` key → isi ke env `SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY`.
    > Service role key melewati RLS — hanya pernah dipakai server, jangan bocor ke client.
+4. Isi juga environment OTP (lihat tabel di atas) supaya login bisa dipakai.
 
 ## Integrasi Pembayaran Lynk.id
 
@@ -105,22 +127,33 @@ app/
   layout.jsx        # Shell + sidebar
   globals.css       # Design system (warna Fridgey hijau)
   (main)/           # Group halaman ber-sidebar
-    dashboard|stok|tambah|laporan|bayar
+    dashboard|stok|tambah|laporan|bayar|profil
   login/            # Halaman login OTP
-  api/auth|items|reports|payments/lynk
+  api/
+    auth/otp|verify|logout
+    items, profile, upload, reports, reports/export, payments/lynk
 components/
-  Sidebar.jsx
-  PaymentPlans.jsx
+  Sidebar.jsx, PaymentPlans.jsx, ProfileForm.jsx,
+  ExportLaporan.jsx, SafeImage.jsx
 lib/
   db.js             # Data store: Supabase (cloud) atau node:sqlite (lokal) + seed
   items.js          # Query & aggregasi
+  auth.js           # Sesi cookie HttpOnly (token acak, hash disimpan)
+  otp.js            # Generate/hash/verifikasi + pengiriman lewat penyedia
+  storage.js        # Penyimpanan foto (Supabase Storage / folder lokal dev)
 supabase/
-  schema.sql        # Skema PostgreSQL + seed untuk dijalankan di Supabase
+  schema.sql        # Skema PostgreSQL + storage bucket + seed untuk Supabase
 ```
 
-## Catatan Mockup
+## Catatan Teknis
 
-- OTP & OCR disimulasikan (bukan integrasi asli) - sesuai scope MVP (PRD M-1, F-2.2).
-- Barcode tidak memuat tanggal kedaluwarsa; input tanggal manual/verifikasi tetap
-  diperlukan (perbaikan fatal V1).
-- Notifikasi WhatsApp asli membutuhkan WhatsApp Business API (Sprint 7 - luar MVP).
+- Login memakai OTP asli (6 digit, berlaku 5 menit, maks 5 percobaan, cooldown
+  60 detik, maks 5 permintaan per jam per nomor). Kode disimpan sebagai hash
+  HMAC - kode plaintext tidak pernah ditulis ke database.
+- Nama bahan dan tanggal kedaluwarsa tetap diisi manual setelah foto diunggah;
+  foto tidak diproses OCR pada versi ini.
+- Barcode tidak memuat tanggal kedaluwarsa; verifikasi tanggal tetap wajib.
+- Foto struk/kemasan disimpan permanen di Supabase Storage. Folder lokal
+  `public/uploads` hanya berlaku untuk pengembangan.
+- Ekspor laporan memakai `exceljs` dan menghasilkan `.xlsx` sesuai filter
+  kategori, status, dan rentang tanggal yang dipilih pengguna.

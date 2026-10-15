@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import SafeImage from "@/components/SafeImage";
 
 export default function ProfileForm({ user }) {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function ProfileForm({ user }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Foto baru diunggah tetapi belum disimpan ke database.
+  const photoDirty = Boolean(photoUrl) && photoUrl !== (user.photoUrl || "");
+
   async function handlePhoto(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -25,17 +29,19 @@ export default function ProfileForm({ user }) {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!data.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
         setError(data.error || "Gagal mengunggah foto.");
+        if (fileRef.current) fileRef.current.value = "";
         return;
       }
       setPhotoUrl(data.url);
-      setSuccess("Foto profil diunggah. Jangan lupa simpan.");
+      setSuccess("Foto profil diunggah. Klik Simpan Profil untuk menyimpan.");
     } catch {
       setError("Tidak dapat mengunggah foto. Coba lagi.");
     } finally {
       setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -43,7 +49,7 @@ export default function ProfileForm({ user }) {
     e.preventDefault();
     setError("");
     setSuccess("");
-    if (name.trim().length < 2) {
+    if (name.trim().length < 2 || name.trim().length > 60) {
       setError("Nama harus 2-60 karakter.");
       return;
     }
@@ -59,8 +65,8 @@ export default function ProfileForm({ user }) {
           photoUrl,
         }),
       });
-      const data = await res.json();
-      if (!data.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
         setError(data.error || "Gagal menyimpan profil.");
         return;
       }
@@ -89,35 +95,60 @@ export default function ProfileForm({ user }) {
             {!photoUrl && (name.trim().charAt(0).toUpperCase() || "?")}
           </div>
           <div>
+            <label className="field-label" htmlFor="foto-profil">
+              Foto Profil
+            </label>
             <input
+              id="foto-profil"
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={handlePhoto}
               disabled={uploading || saving}
             />
+            <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>
+              JPG, PNG, atau WEBP, maksimal 5 MB.
+            </p>
             {uploading && <p style={{ fontSize: 12, margin: "6px 0 0" }}>Mengunggah...</p>}
+            {photoDirty && (
+              <p style={{ fontSize: 12, margin: "6px 0 0", color: "#c77700", fontWeight: 700 }}>
+                Foto belum tersimpan - klik Simpan Profil.
+              </p>
+            )}
+            {photoUrl && !photoDirty && (
+              <SafeImage
+                src={photoUrl}
+                alt="Foto profil tersimpan"
+                className="thumb"
+                fallback="Foto tidak dapat dimuat"
+              />
+            )}
           </div>
         </div>
 
-        <label className="field-label">Nama</label>
+        <label className="field-label" htmlFor="profil-nama">Nama</label>
         <input
+          id="profil-nama"
           className="input"
           value={name}
+          maxLength={60}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nama lengkap"
         />
 
-        <label className="field-label">Nama Usaha</label>
+        <label className="field-label" htmlFor="profil-usaha">Nama Usaha</label>
         <input
+          id="profil-usaha"
           className="input"
           value={businessName}
+          maxLength={80}
           onChange={(e) => setBusinessName(e.target.value)}
           placeholder="Mis. Katering Rumahan Bu Rina"
         />
 
-        <label className="field-label">Email (opsional)</label>
+        <label className="field-label" htmlFor="profil-email">Email (opsional)</label>
         <input
+          id="profil-email"
           className="input"
           type="email"
           value={email}
@@ -125,8 +156,8 @@ export default function ProfileForm({ user }) {
           placeholder="nama@email.com"
         />
 
-        <label className="field-label">Nomor WhatsApp</label>
-        <input className="input" value={user.phone} disabled readOnly />
+        <label className="field-label" htmlFor="profil-telp">Nomor WhatsApp</label>
+        <input id="profil-telp" className="input" value={user.phone} disabled readOnly />
 
         <button className="btn" type="submit" disabled={saving || uploading}>
           {saving ? "Menyimpan..." : "Simpan Profil"}

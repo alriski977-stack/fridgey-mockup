@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 function emptyForm(source) {
@@ -19,6 +19,7 @@ function emptyForm(source) {
 export default function TambahPage() {
   const router = useRouter();
   const fileRef = useRef(null);
+  const previewRef = useRef("");
   const [method, setMethod] = useState("photo");
   const [form, setForm] = useState(() => emptyForm("photo"));
   const [msg, setMsg] = useState("");
@@ -36,21 +37,34 @@ export default function TambahPage() {
     setForm((f) => ({ ...f, source: k }));
   }
 
+  function showPreview(url) {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = url;
+    setPreview(url);
+  }
+
+  // Lepaskan URL pratinjau saat halaman ditinggalkan agar tidak ada kebocoran memori.
+  useEffect(() => {
+    return () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    };
+  }, []);
+
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
     setMsg("");
     setUploading(true);
-    setPreview(URL.createObjectURL(file));
+    showPreview(URL.createObjectURL(file));
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!data.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
         setError(data.error || "Gagal mengunggah foto.");
-        setPreview("");
+        showPreview("");
         set("photoUrl", "");
         return;
       }
@@ -58,7 +72,7 @@ export default function TambahPage() {
       setMsg("Foto berhasil diunggah.");
     } catch {
       setError("Tidak dapat mengunggah foto. Coba lagi.");
-      setPreview("");
+      showPreview("");
       set("photoUrl", "");
     } finally {
       setUploading(false);
@@ -70,7 +84,8 @@ export default function TambahPage() {
     setError("");
     setMsg("");
 
-    if (form.name.trim().length < 2) {
+    const name = form.name.trim();
+    if (name.length < 2) {
       setError("Nama bahan minimal 2 karakter.");
       return;
     }
@@ -89,7 +104,7 @@ export default function TambahPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: form.name.trim(),
+          name,
           qty: Number(form.qty),
           unit: form.unit.trim() || "pcs",
           unitCost: Number(form.unitCost) || 0,
@@ -99,17 +114,19 @@ export default function TambahPage() {
           photoUrl: form.photoUrl,
         }),
       });
-      const data = await res.json();
-      if (!data.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
         setError("Gagal menyimpan: " + (data.error || "terjadi kesalahan"));
         return;
       }
-      setMsg("Bahan berhasil disimpan.");
-      // Reset ke kondisi awal yang netral (tanpa nilai contoh apa pun).
-      setForm(emptyForm(method));
-      setPreview("");
+      // Data bahan yang sudah diketik tetap dipertahankan agar bahan berikutnya
+      // bisa langsung ditambahkan tanpa mengisi ulang dari awal. Hanya foto
+      // yang dibersihkan, karena foto tersebut sudah tertaut ke bahan ini.
+      setForm((f) => ({ ...f, photoUrl: "" }));
+      showPreview("");
       if (fileRef.current) fileRef.current.value = "";
-      setTimeout(() => router.push("/stok"), 800);
+      setMsg(`"${name}" berhasil disimpan. Form tetap terisi untuk bahan berikutnya.`);
+      router.refresh();
     } catch {
       setError("Tidak dapat menghubungi server. Coba lagi.");
     } finally {
@@ -242,6 +259,9 @@ export default function TambahPage() {
         <button className="btn" type="submit" disabled={saving || uploading}>
           {saving ? "Menyimpan..." : "Simpan Bahan"}
         </button>
+        <a href="/stok" className="btn ghost" style={{ marginLeft: 8 }}>
+          Lihat Daftar Stok
+        </a>
         {msg && <span style={{ marginLeft: 12, fontWeight: 700, color: "#2f7d32" }}>{msg}</span>}
         {error && <span style={{ marginLeft: 12, fontWeight: 700, color: "#c0392b" }}>{error}</span>}
       </form>

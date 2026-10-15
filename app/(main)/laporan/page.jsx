@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { getAllItems } from "@/lib/items";
+import { getCurrentUser } from "@/lib/auth";
 import ExportLaporan from "@/components/ExportLaporan";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +10,9 @@ function rupiah(n) {
 }
 
 export default async function LaporanPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const items = await getAllItems();
   const totalValue = items.reduce((a, i) => a + i.qty * i.unitCost, 0);
   const nearItems = items.filter(
@@ -20,6 +25,11 @@ export default async function LaporanPage() {
   }
 
   const categories = [...new Set(items.map((i) => i.category))].filter(Boolean).sort();
+  const filterPreview = items.map((i) => ({
+    category: i.category,
+    status: i.status,
+    expiry: i.expiry,
+  }));
 
   return (
     <>
@@ -50,7 +60,7 @@ export default async function LaporanPage() {
         </div>
       </div>
 
-      <ExportLaporan categories={categories} />
+      <ExportLaporan categories={categories} items={filterPreview} />
 
       <div className="panel">
         <div className="panel-head">Rincian per Kategori (nilai Rp)</div>

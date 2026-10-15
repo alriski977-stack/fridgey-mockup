@@ -49,7 +49,11 @@ export async function GET(request) {
 
     if (items.length === 0) {
       return NextResponse.json(
-        { ok: false, error: "Tidak ada data yang cocok dengan filter ini." },
+        {
+          ok: false,
+          error:
+            "Tidak ada data yang cocok dengan filter ini. Longgarkan filter kategori/status/tanggal lalu coba lagi.",
+        },
         { status: 404 }
       );
     }
@@ -146,8 +150,9 @@ export async function GET(request) {
       },
     });
   } catch (e) {
+    console.error("[reports/export]", e);
     return NextResponse.json(
-      { ok: false, error: "Gagal membuat berkas Excel: " + String(e) },
+      { ok: false, error: "Gagal membuat berkas Excel. Coba lagi sebentar." },
       { status: 500 }
     );
   }

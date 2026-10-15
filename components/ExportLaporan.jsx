@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function ExportLaporan({ categories = [] }) {
+export default function ExportLaporan({ categories = [], items = [] }) {
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
   const [from, setFrom] = useState("");
@@ -11,11 +11,25 @@ export default function ExportLaporan({ categories = [] }) {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
+  // Pratinjau jumlah baris memakai filter yang sama dengan yang dikirim ke
+  // server, supaya isi Excel dijamin sesuai filter yang sedang dipilih.
+  const filteredCount = items.filter((it) => {
+    if (category && it.category !== category) return false;
+    if (status && it.status !== status) return false;
+    if (from && it.expiry < from) return false;
+    if (to && it.expiry > to) return false;
+    return true;
+  }).length;
+
   async function exportExcel() {
     setError("");
     setInfo("");
     if (from && to && from > to) {
       setError("Tanggal awal tidak boleh lebih besar dari tanggal akhir.");
+      return;
+    }
+    if (filteredCount === 0) {
+      setError("Tidak ada bahan yang cocok dengan filter ini. Ubah filter lalu coba lagi.");
       return;
     }
     setLoading(true);
@@ -32,7 +46,11 @@ export default function ExportLaporan({ categories = [] }) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || "Gagal mengekspor laporan.");
+        setError(
+          res.status === 404
+            ? data.error || "Tidak ada data yang cocok dengan filter ini."
+            : data.error || "Gagal mengekspor laporan."
+        );
         return;
       }
 
@@ -51,7 +69,7 @@ export default function ExportLaporan({ categories = [] }) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setInfo(`Berhasil mengunduh ${filename}`);
+      setInfo(`Berhasil mengunduh ${filename} (${filteredCount} bahan)`);
     } catch {
       setError("Tidak dapat mengunduh laporan. Coba lagi.");
     } finally {
@@ -109,6 +127,10 @@ export default function ExportLaporan({ categories = [] }) {
             />
           </div>
         </div>
+
+        <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 14px" }}>
+          {filteredCount} bahan akan masuk file Excel sesuai filter di atas.
+        </p>
 
         <button className="btn" type="button" onClick={exportExcel} disabled={loading}>
           {loading ? "Menyiapkan berkas..." : "⬇ Export Excel"}

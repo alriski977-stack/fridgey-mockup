@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSummary } from "@/lib/items";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -8,10 +9,13 @@ function rupiah(n) {
 }
 
 export default async function DashboardPage() {
-  const [s, user] = await Promise.all([getSummary(), getCurrentUser()]);
-  const userLabel = user
-    ? `${user.name || user.phone}${user.businessName ? " - " + user.businessName : ""}`
-    : "Belum masuk";
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const s = await getSummary();
+  const userLabel = user.name
+    ? `${user.name}${user.businessName ? " - " + user.businessName : ""}`
+    : `${user.phone}${user.businessName ? " - " + user.businessName : ""}`;
   return (
     <>
       <div className="topbar">
