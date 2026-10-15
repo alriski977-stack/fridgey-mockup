@@ -28,7 +28,7 @@ export async function PUT(request) {
 
   const name = String(body.name || "").trim();
   const businessName = String(body.businessName || "").trim();
-  const email = String(body.email || "").trim();
+  const phone = String(body.phone || "").trim();
   const photoUrl = String(body.photoUrl || "").trim();
 
   if (name.length < 2 || name.length > 60) {
@@ -43,8 +43,11 @@ export async function PUT(request) {
       { status: 400 }
     );
   }
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return NextResponse.json({ ok: false, error: "Format email tidak valid." }, { status: 400 });
+  if (phone && !/^(0|62|\+62)8\d{8,11}$/.test(phone.replace(/[\s-]/g, ""))) {
+    return NextResponse.json(
+      { ok: false, error: "Format nomor WhatsApp tidak valid. Contoh: 081234567890" },
+      { status: 400 }
+    );
   }
   if (!isAllowedPhotoUrl(photoUrl)) {
     return NextResponse.json(
@@ -54,7 +57,7 @@ export async function PUT(request) {
   }
 
   try {
-    const updated = await store.updateUser(user.id, { name, businessName, email, photoUrl });
+    const updated = await store.updateUser(user.id, { name, businessName, phone, photoUrl });
     return NextResponse.json({ ok: true, user: updated });
   } catch (e) {
     console.error("[profile PUT]", e);

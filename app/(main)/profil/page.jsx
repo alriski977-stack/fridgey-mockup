@@ -12,7 +12,7 @@ export default async function ProfilPage() {
       <div className="topbar">
         <h1>Profil Akun</h1>
         <span className="user">
-          {user ? `${user.name || user.phone} - ${user.phone}` : "Belum masuk"}
+          {user ? `${user.name || user.email} - ${user.email}` : "Belum masuk"}
         </span>
       </div>
 

@@ -35,22 +35,54 @@ create table if not exists public.subscriptions (
   created_at  timestamptz not null default now()
 );
 
--- ---------- Tabel pengguna ----------
+-- ---------- Tabel pengguna (identitas: EMAIL) ----------
 create table if not exists public.users (
   id            bigint generated always as identity primary key,
-  phone         text unique not null,
+  email         text unique not null,
+  phone         text not null default '',
   name          text not null default '',
   business_name text not null default '',
-  email         text not null default '',
   photo_url     text not null default '',
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
 
--- ---------- Tabel kode OTP ----------
+-- Migrasi dari skema lama (identitas telepon) bila tabel lama sudah terlanjur ada.
+alter table public.users add column if not exists email text;
+alter table public.users add column if not exists phone text not null default '';
+alter table public.users drop constraint if exists users_phone_key;
+alter table public.users alter column phone drop not null;
+alter table public.users alter column phone set default '';
+update public.users set email = 'user' || id || '@local.invalid' where email is null or email = '';
+delete from public.users a using public.users b where a.id > b.id and a.email = b.email;
+create unique index if not exists users_email_key on public.users (email);
+
+-- ---------- Tabel kode OTP (identitas: EMAIL) ----------
+-- Skema lama memakai kolom phone; kode OTP bersifat sementara sehingga tabel
+-- lama (bila ada) aman dibuang agar tidak bentrok.
 create table if not exists public.otp_codes (
   id         bigint generated always as identity primary key,
-  phone      text not null,
+  email      text not null,
+  code_hash  text not null,
+  attempts   int not null default 0,
+  consumed   boolean not null default false,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+do $migrate$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'otp_codes' and column_name = 'phone'
+  ) then
+    drop table public.otp_codes;
+  end if;
+end $migrate$;
+
+create table if not exists public.otp_codes (
+  id         bigint generated always as identity primary key,
+  email      text not null,
   code_hash  text not null,
   attempts   int not null default 0,
   consumed   boolean not null default false,
@@ -69,7 +101,8 @@ create table if not exists public.sessions (
 
 create index if not exists items_expiry_idx on public.items (expiry);
 create index if not exists subs_id_idx on public.subscriptions (id desc);
-create index if not exists otp_phone_idx on public.otp_codes (phone, created_at desc);
+drop index if exists public.otp_phone_idx;
+create index if not exists otp_email_idx on public.otp_codes (email, created_at desc);
 create index if not exists sessions_token_idx on public.sessions (token_hash);
 
 -- ============================================================

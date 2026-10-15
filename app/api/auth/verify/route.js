@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/db";
 import { createSession, SESSION_COOKIE } from "@/lib/auth";
-import {
-  normalizePhone,
-  isValidPhone,
-  hashCode,
-  safeEqual,
-  OTP_MAX_ATTEMPTS,
-} from "@/lib/otp";
+import { normalizeEmail, isValidEmail, hashCode, safeEqual, OTP_MAX_ATTEMPTS } from "@/lib/otp";
 
 export const runtime = "nodejs";
 
@@ -19,18 +13,18 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "Body permintaan tidak valid." }, { status: 400 });
   }
 
-  const phone = normalizePhone(body.phone);
+  const email = normalizeEmail(body.email);
   const otp = String(body.otp || "").trim();
 
-  if (!isValidPhone(phone)) {
-    return NextResponse.json({ ok: false, error: "Nomor WhatsApp tidak valid." }, { status: 400 });
+  if (!isValidEmail(email)) {
+    return NextResponse.json({ ok: false, error: "Alamat email tidak valid." }, { status: 400 });
   }
   if (!/^\d{6}$/.test(otp)) {
     return NextResponse.json({ ok: false, error: "Kode OTP harus 6 digit angka." }, { status: 400 });
   }
 
   try {
-    const record = await store.getLatestOtp(phone);
+    const record = await store.getLatestOtp(email);
     if (!record) {
       return NextResponse.json(
         { ok: false, error: "Kode OTP tidak ditemukan. Minta kode baru." },
@@ -60,14 +54,14 @@ export async function POST(request) {
     }
 
     await store.consumeOtp(record.id);
-    const user = await store.ensureUser(phone);
+    const user = await store.ensureUser(email);
     const { token, expiresAt } = await createSession(user.id);
 
     const res = NextResponse.json({
       ok: true,
       user: {
         id: user.id,
-        phone: user.phone,
+        email: user.email,
         name: user.name,
         businessName: user.businessName,
       },

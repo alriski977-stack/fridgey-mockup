@@ -9,7 +9,7 @@ export default function ProfileForm({ user }) {
   const fileRef = useRef(null);
   const [name, setName] = useState(user.name || "");
   const [businessName, setBusinessName] = useState(user.businessName || "");
-  const [email, setEmail] = useState(user.email || "");
+  const [phone, setPhone] = useState(user.phone || "");
   const [photoUrl, setPhotoUrl] = useState(user.photoUrl || "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,7 +61,7 @@ export default function ProfileForm({ user }) {
         body: JSON.stringify({
           name: name.trim(),
           businessName: businessName.trim(),
-          email: email.trim(),
+          phone: phone.trim(),
           photoUrl,
         }),
       });
@@ -146,18 +146,28 @@ export default function ProfileForm({ user }) {
           placeholder="Mis. Katering Rumahan Bu Rina"
         />
 
-        <label className="field-label" htmlFor="profil-email">Email (opsional)</label>
+        <label className="field-label" htmlFor="profil-email">Email (akun login)</label>
         <input
           id="profil-email"
           className="input"
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="nama@email.com"
+          value={user.email}
+          disabled
+          readOnly
         />
+        <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 14px" }}>
+          Email ini dipakai untuk masuk dan tidak dapat diubah.
+        </p>
 
-        <label className="field-label" htmlFor="profil-telp">Nomor WhatsApp</label>
-        <input id="profil-telp" className="input" value={user.phone} disabled readOnly />
+        <label className="field-label" htmlFor="profil-telp">Nomor WhatsApp (opsional)</label>
+        <input
+          id="profil-telp"
+          className="input"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="081234567890"
+        />
 
         <button className="btn" type="submit" disabled={saving || uploading}>
           {saving ? "Menyimpan..." : "Simpan Profil"}

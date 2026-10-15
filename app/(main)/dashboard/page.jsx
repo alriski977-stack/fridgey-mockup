@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const s = await getSummary();
   const userLabel = user.name
     ? `${user.name}${user.businessName ? " - " + user.businessName : ""}`
-    : `${user.phone}${user.businessName ? " - " + user.businessName : ""}`;
+    : `${user.email}${user.businessName ? " - " + user.businessName : ""}`;
   return (
     <>
       <div className="topbar">
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
             borderBottom: "1px solid #e5e7eb",
           }}
         >
-          Notifikasi WhatsApp aktif untuk paket berbayar (trial 14 hari).
+          Notifikasi email pengingat bahan hampir basi untuk paket berbayar (trial 14 hari).
         </div>
       </div>
     </>

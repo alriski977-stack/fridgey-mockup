@@ -16,7 +16,7 @@ const PLANS = [
     env: "LYNK_LINK_STARTER",
     price: "Rp 75.000 / bulan",
     lama: "Bulanan",
-    fitur: "Kelola stok, notifikasi WhatsApp hampir basi, laporan penghematan.",
+    fitur: "Kelola stok, notifikasi email hampir basi, laporan penghematan.",
   },
   {
     name: "Pro",
@@ -49,7 +49,7 @@ export default async function BayarPage() {
           marginBottom: 20,
         }}
       >
-        Aktifkan paket untuk menyalakan notifikasi WhatsApp &amp; laporan lengkap.
+        Aktifkan paket untuk menyalakan notifikasi email &amp; laporan lengkap.
         Catatan: tombol menjadi aktif setelah pemilik mengisi link pembayaran Lynk.id
         di lingkungan hosting (env LYNK_LINK_*).
       </p>

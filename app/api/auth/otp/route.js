@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/db";
 import {
-  normalizePhone,
-  isValidPhone,
+  normalizeEmail,
+  isValidEmail,
   generateCode,
   hashCode,
-  sendOtp,
-  otpProviderStatus,
-  OTP_NOT_CONFIGURED_MESSAGE,
   OTP_TTL_MS,
   OTP_RESEND_COOLDOWN_MS,
   OTP_MAX_PER_HOUR,
 } from "@/lib/otp";
+import {
+  sendOtpEmail,
+  emailProviderStatus,
+  EMAIL_NOT_CONFIGURED_MESSAGE,
+} from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -23,25 +25,22 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "Body permintaan tidak valid." }, { status: 400 });
   }
 
-  const phone = normalizePhone(body.phone);
-  if (!isValidPhone(phone)) {
+  const email = normalizeEmail(body.email);
+  if (!isValidEmail(email)) {
     return NextResponse.json(
-      { ok: false, error: "Nomor WhatsApp tidak valid. Contoh: 081234567890" },
+      { ok: false, error: "Alamat email tidak valid. Contoh: nama@email.com" },
       { status: 400 }
     );
   }
 
-  const provider = otpProviderStatus();
+  const provider = emailProviderStatus();
   if (!provider.configured) {
-    return NextResponse.json(
-      { ok: false, error: OTP_NOT_CONFIGURED_MESSAGE },
-      { status: 503 }
-    );
+    return NextResponse.json({ ok: false, error: EMAIL_NOT_CONFIGURED_MESSAGE }, { status: 503 });
   }
 
   try {
     const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const sentLastHour = await store.countOtpsSince(phone, hourAgo);
+    const sentLastHour = await store.countOtpsSince(email, hourAgo);
     if (sentLastHour >= OTP_MAX_PER_HOUR) {
       return NextResponse.json(
         { ok: false, error: "Terlalu banyak permintaan OTP. Coba lagi dalam 1 jam." },
@@ -50,7 +49,7 @@ export async function POST(request) {
     }
 
     const cooldownSince = new Date(Date.now() - OTP_RESEND_COOLDOWN_MS).toISOString();
-    const recent = await store.countOtpsSince(phone, cooldownSince);
+    const recent = await store.countOtpsSince(email, cooldownSince);
     if (recent >= 1) {
       return NextResponse.json(
         { ok: false, error: "Tunggu 60 detik sebelum meminta kode lagi." },
@@ -59,17 +58,17 @@ export async function POST(request) {
     }
 
     const code = generateCode();
-    await store.clearActiveOtps(phone);
+    await store.clearActiveOtps(email);
     const otpId = await store.createOtp({
-      phone,
+      email,
       codeHash: hashCode(code),
       expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
     });
 
-    const send = await sendOtp(phone, code);
+    const send = await sendOtpEmail(email, code);
     if (!send.ok) {
-      // Kode tidak sampai ke pengguna: hapus catatannya supaya percobaan
-      // berikutnya tidak ikut terkena cooldown maupun batas per jam.
+      // Email tidak terkirim: hapus catatan OTP agar permintaan berikutnya
+      // tidak ikut terkena cooldown maupun batas per jam.
       await store.deleteOtp(otpId).catch(() => {});
       return NextResponse.json({ ok: false, error: send.error }, { status: 502 });
     }
@@ -77,8 +76,8 @@ export async function POST(request) {
     const payload = {
       ok: true,
       message: send.devCode
-        ? "Kode OTP dibuat dalam mode pengujian (belum dikirim lewat WhatsApp)."
-        : `Kode OTP dikirim ke WhatsApp ${phone}.`,
+        ? "Kode OTP dibuat dalam mode pengujian (belum dikirim lewat email)."
+        : `Kode OTP dikirim ke email ${email}.`,
       expiresIn: Math.round(OTP_TTL_MS / 1000),
     };
     if (send.devCode) payload.devCode = send.devCode;

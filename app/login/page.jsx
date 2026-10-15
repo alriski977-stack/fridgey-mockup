@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const COOLDOWN_SECONDS = 60;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [msg, setMsg] = useState("");
@@ -27,9 +28,9 @@ export default function LoginPage() {
     setError("");
     setMsg("");
     setDevCode("");
-    const clean = phone.replace(/[\s-]/g, "");
-    if (!/^(0|62|\+62)8\d{8,11}$/.test(clean)) {
-      setError("Nomor WhatsApp tidak valid. Contoh: 081234567890");
+    const clean = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(clean)) {
+      setError("Alamat email tidak valid. Contoh: nama@email.com");
       return;
     }
     setLoading(true);
@@ -37,13 +38,14 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: clean }),
+        body: JSON.stringify({ email: clean }),
       });
       const data = await res.json();
       if (!data.ok) {
         setError(data.error || "Gagal mengirim kode OTP.");
         return;
       }
+      setEmail(clean);
       setStep(2);
       setMsg(data.message || "Kode OTP dikirim.");
       if (data.devCode) setDevCode(data.devCode);
@@ -64,7 +66,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.replace(/[\s-]/g, "") }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -94,7 +96,7 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.replace(/[\s-]/g, ""), otp: otp.trim() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -118,17 +120,19 @@ export default function LoginPage() {
         </div>
         <div className="tag">
           Kelola stok bahan makanan &amp; hemat biaya dapur untuk UMKM kuliner.
-          Login tanpa kata sandi - cukup nomor WhatsApp.
+          Login tanpa kata sandi - cukup email Anda.
         </div>
 
         {step === 1 ? (
           <form onSubmit={requestOtp}>
             <input
               className="input"
-              type="tel"
-              placeholder="Nomor WhatsApp (mis. 081234567890)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="Alamat email (mis. nama@email.com)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
             />
             <button className="btn" style={{ width: "100%" }} type="submit" disabled={loading}>
@@ -137,11 +141,12 @@ export default function LoginPage() {
           </form>
         ) : (
           <form onSubmit={verify}>
-            <div className="tag">Kode OTP dikirim ke WhatsApp {phone}</div>
+            <div className="tag">Kode OTP dikirim ke email {email}</div>
             <input
               className="input"
               type="text"
               inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={6}
               placeholder="Masukkan 6 digit kode"
               value={otp}
@@ -174,7 +179,7 @@ export default function LoginPage() {
                 }}
                 disabled={loading}
               >
-                Ganti nomor
+                Ganti email
               </button>
             </div>
           </form>
